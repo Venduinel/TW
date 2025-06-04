@@ -1,0 +1,263 @@
+import Controller from '../interfaces/controller.interface';
+import { Request, Response, NextFunction, Router } from 'express';
+
+import mongoose from 'mongoose';
+
+import { checkIdParam } from '../middlewares/deviceIdParam.middleware';
+
+import DataService from '../modules/services/data.service';
+
+import { config } from '../config';
+
+let testArr = [4, 5, 6, 3, 5, 3, 7, 5, 13, 5, 6, 4, 3, 6, 3, 6];
+
+class DataController implements Controller {
+    public path = '/api/data';
+    public router = Router();
+    private dataService: DataService;
+
+    constructor() {
+        this.dataService = new DataService();
+        this.initializeRoutes();
+    }
+
+    /*
+    private initializeRoutes() {
+        this.router.get(`${this.path}/latest`, this.getLatestReadingsFromAllDevices);
+
+        this.router.post(`${this.path}/:id`, this.addData);
+
+        this.router.get(`${this.path}/:id`, this.getDataFromId);
+
+        this.router.get(`${this.path}/:id/latest`, this.getLatestDataFromId);
+
+        this.router.get(`${this.path}/:id/:num`, this.getSomeDataFromId);
+
+        this.router.delete(`${this.path}/all`, this.deleteAllElements);
+
+        this.router.delete(`${this.path}/:id`, this.deleteElementFromId);
+    }
+    */
+
+    private initializeRoutes() {
+        this.router.get(`${this.path}/latest`, this.getLatestReadingsFromAllDevices);
+
+        this.router.post(`${this.path}/:id`, checkIdParam, this.addData);
+
+        this.router.get(`${this.path}/:id`, checkIdParam, this.getAllDeviceData);
+
+        this.router.get(`${this.path}/:id/latest`, checkIdParam, this.getLatestDataFromId);
+
+        this.router.get(`${this.path}/:id/:num`, checkIdParam, this.getSomeDataFromId);
+
+        this.router.delete(`${this.path}/all`, this.deleteAllElements);
+
+        this.router.delete(`${this.path}/:id`, checkIdParam, this.deleteElementFromId);
+    }
+
+    private getAllDeviceData = async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id } = request.params;
+            const allData = await this.dataService.query(id);
+            response.status(200).json(allData);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private addData = async (request: Request, response: Response, next: NextFunction) => {
+        const { air } = request.body;
+        const { id } = request.params;
+
+        if (!air || !Array.isArray(air) || air.length < 3) {
+            return response.status(400).json({ message: "Invalid 'air' data. Expected an array with at least 3 elements." });
+        }
+
+        const data = {
+            temperature: air[0].value,
+            pressure: air[1].value,
+            humidity: air[2].value,
+            deviceId: Number(id),  // bierzemy deviceId z parametru URL i konwertujemy na number
+            readingDate: new Date()
+        };
+
+        try {
+            await this.dataService.createData(data);
+            response.status(201).json(data);
+        } catch (error) {
+            console.error(`Validation Error: ${error.message}`);
+            response.status(400).json({ error: 'Invalid input data.' });
+        }
+    };
+
+    private addData1 = async (request: Request, response: Response, next: NextFunction) => {
+        const { air } = request.body;
+        const { id } = request.params;
+
+        const deviceIdNum = Number(id);
+        if (isNaN(deviceIdNum)) {
+            return response.status(400).json({ error: 'Invalid device ID' });
+        }
+
+        const data = {
+            temperature: air[0].value,
+            pressure: air[1].value,
+            humidity: air[2].value,
+            deviceId: deviceIdNum,
+            readingDate: new Date()
+        };
+
+        try {
+            await this.dataService.createData(data);
+            response.status(200).json(data);
+        } catch (error) {
+            console.error(`Validation Error: ${error.message}`);
+            response.status(400).json({ error: 'Invalid input data.' });
+        }
+    };
+
+    private getLatestReadingsFromAllDevices1 = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            response.status(200).json(testArr);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private addDataOld = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { elem } = request.body;
+            if (elem === undefined) {
+                return response.status(400).json({ message: "Element is required" });
+            }
+
+            testArr.push(elem);
+
+            response.status(201).json(testArr);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private getDataFromId = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id } = request.params;
+            const data = testArr[Number.parseInt(id)];
+
+            if (data === undefined) {
+                return response.status(404).json({ message: "Data not found" });
+            }
+
+            response.status(200).json(data);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private getLatestDataFromId1 = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id } = request.params;
+            const data = testArr.filter((_, index) => index === Number.parseInt(id));
+            const latestData = Math.max(...data);
+
+            if (isNaN(latestData)) {
+                return response.status(404).json({ message: "Data not found" });
+            }
+
+            response.status(200).json(latestData);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private getSomeDataFromId = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id, num } = request.params;
+            const start = Number.parseInt(id);
+            const length = Number.parseInt(num);
+
+            const data = testArr.slice(start, start + length);
+
+            if (data.length === 0) {
+                return response.status(404).json({ message: "Data not found" });
+            }
+
+            response.status(200).json(data);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private deleteAllElements = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            testArr = [];
+            response.status(200).json({ message: "All elements deleted" });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    private deleteElementFromId1 = (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id } = request.params;
+            const index = Number.parseInt(id);
+
+            if (testArr[index] === undefined) {
+                return response.status(404).json({ message: "Data not found" });
+            }
+
+            testArr.splice(index, 1);
+
+            response.status(200).json({ message: "Element deleted" });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+
+    // 1. Metoda zwracająca najnowszy wpis dla danego urządzenia (GET /api/data/:id/latest)
+    private getLatestDataFromId = async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id } = request.params;
+            const deviceIdNum = Number(id);
+            if (isNaN(deviceIdNum)) {
+                return response.status(400).json({ message: "Invalid device ID" });
+            }
+            const latestData = await this.dataService.get(deviceIdNum);
+            if (!latestData) {
+                return response.status(404).json({ message: "Data not found" });
+            }
+            response.status(200).json(latestData);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    // 2. Metoda zwracająca najnowsze wpisy ze wszystkich urządzeń (GET /api/data/latest)
+    private getLatestReadingsFromAllDevices = async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const latestData = await this.dataService.getAllNewest(config.supportedDevicesNum);
+            response.status(200).json(latestData);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    // 3. Metoda usuwająca dane urządzenia (DELETE /api/data/:id)
+    private deleteElementFromId = async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const { id } = request.params;
+            const deviceIdNum = Number(id);
+            if (isNaN(deviceIdNum)) {
+                return response.status(400).json({ message: "Invalid device ID" });
+            }
+            await this.dataService.deleteData(deviceIdNum);
+            response.status(200).json({ message: `Data for device ${deviceIdNum} deleted.` });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+}
+
+export default DataController;
