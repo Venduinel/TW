@@ -1,0 +1,84 @@
+import React, { useEffect, useState } from 'react'
+import { Typography, Box, Divider, CircularProgress } from '@mui/material'
+import DeviceThermostatIcon from '@mui/icons-material/DeviceThermostat'
+import CloudUploadIcon from '@mui/icons-material/CloudUpload'
+import OpacityIcon from '@mui/icons-material/Opacity'
+
+interface DataType {
+  temperature: number
+  pressure: number
+  humidity: number
+  deviceId: number
+}
+
+interface CurrentStateProps {
+  deviceId: number
+}
+
+const CurrentState: React.FC<CurrentStateProps> = ({ deviceId }) => {
+  const [data, setData] = useState<DataType | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(`http://localhost:3001/api/data/${deviceId}/latest`)
+        if (!response.ok) {
+          throw new Error(`Błąd HTTP: ${response.status}`)
+        }
+        const result = await response.json()
+        setData(result)
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [deviceId])
+
+  if (loading) {
+    return <CircularProgress sx={{ color: '#ffffff' }} />
+  }
+
+  if (error) {
+    return <Typography color="error">Błąd: {error}</Typography>
+  }
+
+  if (!data) return null
+
+  return (
+    <Box
+      sx={{
+        backgroundColor: '#2e2e2e',
+        color: '#ffffff',
+        padding: 2,
+        borderRadius: 2,
+        maxWidth: 300,
+      }}
+    >
+      <Typography variant="h6" gutterBottom>
+        Device No. {data.deviceId}
+      </Typography>
+
+      <Divider sx={{ borderColor: '#ffffff', mb: 2 }} />
+
+      <Typography variant="h6" component="div" display="flex" alignItems="center" gap={1}>
+        <DeviceThermostatIcon />
+        <span>{data.temperature}</span> &deg;C
+      </Typography>
+      <Typography variant="h6" component="div" display="flex" alignItems="center" gap={1}>
+        <CloudUploadIcon />
+        <span>{data.pressure}</span> hPa
+      </Typography>
+      <Typography variant="h6" component="div" display="flex" alignItems="center" gap={1}>
+        <OpacityIcon />
+        <span>{data.humidity}</span>%
+      </Typography>
+    </Box>
+  )
+}
+
+export default CurrentState
